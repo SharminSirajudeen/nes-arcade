@@ -632,6 +632,18 @@ function init() {
 
   setTimeout(() => showToast('INSERT CARTRIDGE TO BEGIN', 4000), 500);
 
+  // Try auto-load if ROM exists locally (gitignored, not in repo)
+  fetch('galaga.nes').then(r => {
+    if (!r.ok) return;
+    return r.arrayBuffer();
+  }).then(buf => {
+    if (!buf) return;
+    const bytes = new Uint8Array(buf);
+    if (!ROMLoader.isValidNES(bytes)) return;
+    const header = ROMLoader.parseHeader(bytes);
+    const romData = ROMLoader.bytesToBinaryString(bytes);
+    onRomLoaded({ name: 'galaga.nes', size: bytes.length, ...header, romData });
+  }).catch(() => {});
 }
 
 
