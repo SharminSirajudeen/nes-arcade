@@ -1,0 +1,18 @@
+{
+  "name": "NES Arcade",
+  "short_name": "NES Arcade",
+  "description": "Browser-based NES emulator with game mods",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#060610",
+  "theme_color": "#00e5ff",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

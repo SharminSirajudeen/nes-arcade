@@ -597,6 +597,79 @@ body {
 /* Decorative corner screws on CRT frame */
 /* Bezel screws removed for clean look */
 
+/* iOS simulated fullscreen — triggered by JS toggling body.ios-fullscreen */
+body.ios-fullscreen {
+  overflow: hidden !important;
+}
+body.ios-fullscreen .arcade-header,
+body.ios-fullscreen .control-panel,
+body.ios-fullscreen .arcade-footer,
+body.ios-fullscreen .starfield,
+body.ios-fullscreen .global-scanlines,
+body.ios-fullscreen .joystick-toggle,
+body.ios-fullscreen .crt-power {
+  display: none !important;
+}
+body.ios-fullscreen .arcade-main {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: none !important;
+}
+body.ios-fullscreen .game-section {
+  width: 100vw !important;
+}
+body.ios-fullscreen .canvas-wrapper,
+body.ios-fullscreen .crt-frame,
+body.ios-fullscreen .crt-bezel {
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  background: #000 !important;
+  width: 100% !important;
+}
+body.ios-fullscreen .crt-screen {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body.ios-fullscreen canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  image-rendering: pixelated !important;
+}
+body.ios-fullscreen .crt-overlay {
+  display: none !important;
+}
+body.ios-fullscreen .touch-overlay {
+  display: flex !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  z-index: 9999 !important;
+}
+body.ios-fullscreen .nes-pill--close {
+  display: none !important;
+}
+
+/* iOS PWA standalone mode — fill entire screen including safe areas */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    min-height: 100dvh;
+  }
+  .arcade-header { display: none; }
+  .arcade-footer { display: none; }
+  .arcade-main { padding-top: 0; }
+}
+
 .crt-bezel {
   background: #0a0a12;
   border-radius: var(--radius-md);

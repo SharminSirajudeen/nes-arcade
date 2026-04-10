@@ -255,22 +255,36 @@ export class EmulatorCore {
       this.#fpsTimestamp = timestamp;
     }
 
-    // Frame timing -- run one NES frame per rAF.
-    // The browser's rAF typically fires at 60Hz on 60Hz displays.
-    // On higher-refresh displays we throttle to ~60fps.
+    // Frame timing — run catch-up frames to keep audio buffer full.
+    // If rAF fires at 30fps, run 2 NES frames but only render the last one.
+    // Audio samples from ALL frames go to the buffer = correct playback speed.
     const elapsed = timestamp - this.#lastFrameTime;
     if (elapsed >= FRAME_INTERVAL_MS - 1) {
-      // Pre-frame hooks (memory writes for hacks)
-      for (let i = 0; i < this.#preFrameHooks.length; i++) {
-        this.#preFrameHooks[i]();
-      }
+      // How many NES frames should have run in this elapsed time?
+      const numFrames = Math.min(Math.round(elapsed / FRAME_INTERVAL_MS), 4);
 
-      // Run one NES frame -- this triggers onFrame and onAudioSample callbacks
-      this.#nes.frame();
+      for (let f = 0; f < numFrames; f++) {
+        // Pre-frame hooks
+        for (let i = 0; i < this.#preFrameHooks.length; i++) {
+          this.#preFrameHooks[i]();
+        }
 
-      // Post-frame hooks (memory reads for display)
-      for (let i = 0; i < this.#postFrameHooks.length; i++) {
-        this.#postFrameHooks[i]();
+        // Run NES frame — onAudioSample fires for ALL frames (keeps audio full)
+        // onFrame (video) only fires on the last frame to save rendering cost
+        if (f < numFrames - 1 && this.#onFrameRender) {
+          // Catch-up frame: temporarily disable video callback, keep audio
+          const savedRender = this.#onFrameRender;
+          this.#onFrameRender = null;
+          this.#nes.frame();
+          this.#onFrameRender = savedRender;
+        } else {
+          this.#nes.frame();
+        }
+
+        // Post-frame hooks
+        for (let i = 0; i < this.#postFrameHooks.length; i++) {
+          this.#postFrameHooks[i]();
+        }
       }
 
       this.#lastFrameTime = timestamp;

@@ -12,7 +12,7 @@
  */
 
 const SAMPLE_RATE = 44100;
-const BUFFER_SIZE = 8192;       // Ring buffer capacity (samples per channel)
+const BUFFER_SIZE = 8192;
 const SCRIPT_BUFFER_SIZE = 2048; // ScriptProcessorNode buffer size
 
 export class AudioEngine {
@@ -83,7 +83,7 @@ export class AudioEngine {
   writeSample(left, right) {
     if (!this.#initialized) return;
 
-    // Drop samples if buffer is full (prevents runaway lag)
+    // Drop if buffer full (prevents runaway lag)
     if (this.#bufferedSamples >= BUFFER_SIZE) return;
 
     this.#bufferLeft[this.#writePos] = left;

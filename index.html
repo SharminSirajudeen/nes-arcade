@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Browser-based NES Galaga emulator with real-time game modification controls. Retro arcade experience.">
   <title>GALAGA ARCADE - NES Emulator</title>
 
@@ -12,7 +12,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
   <!-- Inline SVG favicon (no external file needed) -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%23060610'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='%2300e5ff'>G</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%23060610'/><polygon points='16,4 19,13 13,13' fill='%2300e5ff'/><rect x='14' y='13' width='4' height='4' fill='%23fff' rx='1'/><rect x='13' y='17' width='6' height='2' fill='%23ff2d78' rx='1'/><text x='16' y='30' font-size='7' text-anchor='middle' fill='%2300e5ff' font-family='monospace'>NES</text></svg>">
+  <link rel="apple-touch-icon" href="icon-180.png">
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00e5ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link rel="stylesheet" href="styles.css">
 
@@ -249,18 +256,7 @@
 
   <!-- ===== MOBILE TOUCH CONTROLS — NES Controller Layout ===== -->
   <div class="touch-overlay" id="touch-overlay" aria-label="NES controller" role="toolbar">
-    <!-- LEFT: Fire buttons (A = dual shot, B = single shot) -->
-    <div class="touch-buttons">
-      <button class="nes-btn nes-btn-b" id="touch-b" aria-label="B - Single shot" data-btn="b">B</button>
-      <button class="nes-btn nes-btn-a" id="touch-a" aria-label="A - Dual shot" data-btn="a">A</button>
-    </div>
-    <!-- CENTER: Select + Start -->
-    <div class="touch-center">
-      <button class="nes-pill" id="touch-select" aria-label="Select" data-btn="select">SELECT</button>
-      <button class="nes-pill" id="touch-start" aria-label="Start" data-btn="start">START</button>
-      <button class="nes-pill nes-pill--close" id="touch-close" aria-label="Close joystick">CLOSE</button>
-    </div>
-    <!-- RIGHT: D-Pad -->
+    <!-- LEFT: D-Pad -->
     <div class="touch-dpad">
       <div class="dpad-base">
         <button class="dpad-btn dpad-up" id="touch-up" aria-label="Up" data-btn="up">&#9650;</button>
@@ -270,6 +266,17 @@
         <div class="dpad-center" aria-hidden="true"></div>
       </div>
     </div>
+    <!-- CENTER: Select + Start -->
+    <div class="touch-center">
+      <button class="nes-pill" id="touch-select" aria-label="Select" data-btn="select">SELECT</button>
+      <button class="nes-pill" id="touch-start" aria-label="Start" data-btn="start">START</button>
+      <button class="nes-pill nes-pill--close" id="touch-close" aria-label="Close joystick">CLOSE</button>
+    </div>
+    <!-- RIGHT: A + B buttons -->
+    <div class="touch-buttons">
+      <button class="nes-btn nes-btn-b" id="touch-b" aria-label="B - Single shot" data-btn="b">B</button>
+      <button class="nes-btn nes-btn-a" id="touch-a" aria-label="A - Dual shot" data-btn="a">A</button>
+    </div>
   </div>
 
   <!-- Toast / Notification -->
@@ -278,5 +285,16 @@
   </div>
 
   <script type="module" src="js/main.js?v=3"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => console.log('SW registered:', reg.scope))
+          .catch(err => console.warn('SW registration failed:', err));
+      });
+    }
+  </script>
 </body>
 </html>

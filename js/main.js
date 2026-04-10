@@ -223,34 +223,55 @@ function initGameControls() {
     });
   }
 
-  // Fullscreen
+  // Fullscreen (with Safari/webkit support)
+  function goFullscreen(el) {
+    // Standard Fullscreen API
+    if (el.requestFullscreen) return el.requestFullscreen();
+    if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+    if (el.msRequestFullscreen) return el.msRequestFullscreen();
+    // iOS: no API — simulate fullscreen with CSS
+    document.body.classList.add('ios-fullscreen');
+    return Promise.resolve();
+  }
+  function exitFullscreen() {
+    if (document.exitFullscreen) return document.exitFullscreen();
+    if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
+    if (document.msExitFullscreen) return document.msExitFullscreen();
+  }
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+  }
+
   const btnFullscreen = $('#btn-fullscreen');
   if (btnFullscreen) {
     btnFullscreen.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
+      // iOS CSS fullscreen toggle
+      if (document.body.classList.contains('ios-fullscreen')) {
+        document.body.classList.remove('ios-fullscreen');
+        return;
+      }
+      if (!isFullscreen()) {
         const isMobile = window.matchMedia('(pointer: coarse), (max-width: 768px)').matches;
         if (isMobile) {
-          // Mobile: fullscreen the whole page so joystick is visible
-          document.documentElement.requestFullscreen().catch(() => {});
+          goFullscreen(document.documentElement);
         } else {
-          // Desktop: fullscreen just the game canvas
           const screen = document.querySelector('.crt-screen');
-          (screen || els.gameCanvas).requestFullscreen().catch(() => {});
+          goFullscreen(screen || els.gameCanvas);
         }
       } else {
-        document.exitFullscreen();
+        exitFullscreen();
       }
     });
   }
 
-  // Fullscreen state management
-  document.addEventListener('fullscreenchange', () => {
+  // Fullscreen state management (standard + webkit)
+  function onFullscreenChange() {
     const overlay = $('#touch-overlay');
     const toggle = $('#joystick-toggle');
     const closePill = $('#touch-close');
     const isMobile = window.matchMedia('(pointer: coarse), (max-width: 768px)').matches;
 
-    if (document.fullscreenElement && isMobile) {
+    if (isFullscreen() && isMobile) {
       // Entering mobile fullscreen: show joystick, hide toggle + close
       document.body.classList.add('mobile-fullscreen');
       if (overlay) overlay.classList.remove('hidden');
@@ -263,7 +284,9 @@ function initGameControls() {
       if (toggle) { toggle.style.display = ''; toggle.classList.remove('active'); }
       if (closePill) closePill.style.display = '';
     }
-  });
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 }
 
 // ── Mod State ───────────────────────────────────────────────
