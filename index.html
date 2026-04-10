@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Browser-based NES Galaga emulator with real-time game modification controls. Retro arcade experience.">
+  <title>GALAGA ARCADE - NES Emulator</title>
+
+  <!-- Retro Pixel Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <!-- Inline SVG favicon (no external file needed) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%23060610'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='%2300e5ff'>G</text></svg>">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- JSNES: JavaScript NES Emulator (v2.0.0) -->
+  <script src="https://unpkg.com/jsnes@2.0.0/dist/jsnes.min.js"></script>
+</head>
+<body>
+
+  <!-- Starfield Background (CSS-only, layered behind everything) -->
+  <div class="starfield" aria-hidden="true">
+    <div class="stars stars--sm"></div>
+    <div class="stars stars--md"></div>
+    <div class="stars stars--lg"></div>
+  </div>
+
+  <!-- Scanline Overlay (global subtle effect) -->
+  <div class="global-scanlines" aria-hidden="true"></div>
+
+  <!-- Skip Link for Accessibility -->
+  <a href="#game-canvas" class="skip-link">Skip to game</a>
+
+  <!-- ===== HEADER ===== -->
+  <header class="arcade-header" role="banner">
+    <div class="header-glow" aria-hidden="true"></div>
+    <h1 class="arcade-title">
+      <span class="title-galaga">GALAGA</span>
+      <span class="title-arcade">ARCADE</span>
+    </h1>
+    <p class="header-subtitle">NES EMULATOR &mdash; BROWSER EDITION</p>
+  </header>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <main class="arcade-main">
+
+    <!-- === LEFT: Game Canvas === -->
+    <section class="game-section" aria-label="Game display">
+
+      <!-- ROM Loader (visible before game loads) -->
+      <div class="rom-loader" id="rom-loader" role="region" aria-label="ROM loader">
+        <div class="cartridge-slot">
+          <div class="cartridge-icon" aria-hidden="true">
+            <div class="cartridge-body">
+              <div class="cartridge-label">NES</div>
+              <div class="cartridge-pins"></div>
+            </div>
+            <div class="cartridge-arrow">&#9660;</div>
+          </div>
+          <h2 class="rom-title">INSERT CARTRIDGE</h2>
+          <p class="rom-hint">Drag &amp; drop a .nes ROM file here</p>
+          <div class="rom-dropzone" id="rom-dropzone" tabindex="0" role="button" aria-label="Drop ROM file here or click to browse">
+            <div class="dropzone-border"></div>
+            <span class="dropzone-text">DROP ROM HERE</span>
+            <span class="dropzone-or">or</span>
+            <label class="rom-browse-btn" tabindex="-1">
+              BROWSE FILES
+              <input type="file" id="rom-file-input" accept=".nes" hidden>
+            </label>
+          </div>
+          <p class="rom-legal">For use with legally owned ROM backups only.</p>
+        </div>
+      </div>
+
+      <!-- Game Canvas Wrapper (hidden until ROM loads) -->
+      <div class="canvas-wrapper" id="canvas-wrapper" hidden>
+        <!-- CRT Frame -->
+        <div class="crt-frame">
+          <div class="crt-bezel">
+            <div class="crt-screen">
+              <canvas id="game-canvas" width="256" height="240" aria-label="NES game display"></canvas>
+              <!-- CRT Effects Overlay -->
+              <div class="crt-overlay" aria-hidden="true">
+                <div class="crt-scanlines"></div>
+                <div class="crt-glow"></div>
+                <div class="crt-flicker"></div>
+              </div>
+            </div>
+          </div>
+          <!-- CRT Power bar + game controls -->
+          <div class="crt-power" id="game-controls">
+            <div class="power-led" id="power-led"></div>
+            <div class="power-controls" hidden>
+              <button class="power-btn" id="btn-pause" aria-label="Pause game">&#x23F8;</button>
+              <button class="power-btn" id="btn-reset" aria-label="Reset game">&#x21BA;</button>
+              <button class="power-btn" id="btn-sound" aria-label="Toggle sound" aria-pressed="true">
+                <span id="sound-icon">&#x266B;</span>
+              </button>
+              <button class="power-btn" id="btn-fullscreen" aria-label="Toggle fullscreen">&#x2922;</button>
+              <input type="range" class="volume-slider" id="vol-slider" min="0" max="100" value="100" aria-label="Volume">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- === RIGHT PANEL: Controls === -->
+    <aside class="control-panel" aria-label="Game modification controls">
+
+      <!-- Mod Controls — collapsible on mobile via <details> -->
+      <div class="panel-section">
+        <details class="mods-collapse" id="mods-collapse" open>
+          <summary class="panel-title panel-title--collapsible">
+            GAME MODS
+            <span class="collapse-indicator" aria-hidden="true">&#9660;</span>
+          </summary>
+
+        <div class="mod-controls">
+          <!-- Player Speed -->
+          <div class="mod-control">
+            <label class="mod-label" for="mod-speed">
+              <span class="mod-name">PLAYER SPEED</span>
+              <output class="mod-value" id="mod-speed-val">3</output>
+            </label>
+            <div class="slider-track">
+              <input type="range" class="mod-slider" id="mod-speed" min="1" max="10" value="3" step="1"
+                     aria-describedby="mod-speed-desc">
+              <div class="slider-fill" data-slider="mod-speed"></div>
+              <div class="slider-ticks" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+            <span class="mod-range" id="mod-speed-desc">1 (slow) &mdash; 10 (warp)</span>
+          </div>
+
+          <!-- Firepower (merged fire rate + bullet speed) -->
+          <div class="mod-control">
+            <label class="mod-label" for="mod-firepower">
+              <span class="mod-name">FIREPOWER</span>
+              <output class="mod-value" id="mod-firepower-val">1</output>
+            </label>
+            <div class="slider-track">
+              <input type="range" class="mod-slider" id="mod-firepower" min="1" max="8" value="1" step="1"
+                     aria-describedby="mod-firepower-desc">
+              <div class="slider-fill" data-slider="mod-firepower"></div>
+              <div class="slider-ticks" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+            <span class="mod-range" id="mod-firepower-desc">1 (normal) &mdash; 8 (dual shot + fast bullets)</span>
+          </div>
+
+          <!-- Toggle Mods -->
+          <div class="mod-control">
+            <div class="mod-toggles">
+              <button class="arcade-btn arcade-btn--toggle" id="btn-infinite-lives" aria-label="Toggle infinite lives" aria-pressed="false">
+                <span class="btn-text">INFINITE LIVES</span>
+              </button>
+              <button class="arcade-btn arcade-btn--toggle" id="btn-dual-fighter" aria-label="Toggle dual fighter" aria-pressed="false">
+                <span class="btn-text">DUAL FIGHTER</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        </details>
+      </div>
+
+      <!-- Save/Load State — collapsible on mobile -->
+      <div class="panel-section">
+        <details class="mods-collapse" id="saves-collapse">
+          <summary class="panel-title panel-title--collapsible">
+            SAVE STATE
+            <span class="collapse-indicator" aria-hidden="true">&#9660;</span>
+          </summary>
+        <div class="save-slots">
+          <div class="save-slot" id="slot-1">
+            <div class="slot-chip">1</div>
+            <span class="slot-status">EMPTY</span>
+            <div class="slot-actions">
+              <button class="slot-btn slot-btn--save" id="btn-save-1" aria-label="Save to slot 1">&#9660; SAVE</button>
+              <button class="slot-btn slot-btn--load" id="btn-load-1" aria-label="Load from slot 1" disabled>&#9650; LOAD</button>
+            </div>
+          </div>
+          <div class="save-slot" id="slot-2">
+            <div class="slot-chip">2</div>
+            <span class="slot-status">EMPTY</span>
+            <div class="slot-actions">
+              <button class="slot-btn slot-btn--save" id="btn-save-2" aria-label="Save to slot 2">&#9660; SAVE</button>
+              <button class="slot-btn slot-btn--load" id="btn-load-2" aria-label="Load from slot 2" disabled>&#9650; LOAD</button>
+            </div>
+          </div>
+          <div class="save-slot" id="slot-3">
+            <div class="slot-chip">3</div>
+            <span class="slot-status">EMPTY</span>
+            <div class="slot-actions">
+              <button class="slot-btn slot-btn--save" id="btn-save-3" aria-label="Save to slot 3">&#9660; SAVE</button>
+              <button class="slot-btn slot-btn--load" id="btn-load-3" aria-label="Load from slot 3" disabled>&#9650; LOAD</button>
+            </div>
+          </div>
+        </div>
+        </details>
+      </div>
+
+      <!-- Controls -->
+      <div class="panel-section">
+        <details class="mods-collapse" id="controls-collapse">
+          <summary class="panel-title panel-title--collapsible">
+            CONTROLS
+            <span class="collapse-indicator" aria-hidden="true">&#9660;</span>
+          </summary>
+          <div class="key-map">
+            <div class="key-row"><kbd class="key-cap">&#9650;</kbd><span class="key-action">Up</span></div>
+            <div class="key-row"><kbd class="key-cap">&#9660;</kbd><span class="key-action">Down</span></div>
+            <div class="key-row"><kbd class="key-cap">&#9664;</kbd><span class="key-action">Left</span></div>
+            <div class="key-row"><kbd class="key-cap">&#9654;</kbd><span class="key-action">Right</span></div>
+            <div class="key-row"><kbd class="key-cap key-cap--wide">Z</kbd><span class="key-action">Fire</span></div>
+            <div class="key-row"><kbd class="key-cap key-cap--wide">X</kbd><span class="key-action">Start</span></div>
+            <div class="key-row"><kbd class="key-cap key-cap--wide">C</kbd><span class="key-action">Select</span></div>
+            <div class="key-row"><kbd class="key-cap key-cap--extra-wide">Enter</kbd><span class="key-action">Start</span></div>
+          </div>
+        </details>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="arcade-footer" role="contentinfo">
+    <p class="footer-text">
+      GALAGA &copy; 1981 NAMCO &bull; Emulation via
+      <a href="https://github.com/bfirsh/jsnes" class="footer-link" target="_blank" rel="noopener noreferrer">JSNES</a>
+      &bull; For educational &amp; preservation purposes
+    </p>
+    <p class="footer-credit">
+      BUILT WITH <span class="footer-heart" aria-label="love">&#9829;</span> AND NOSTALGIA
+    </p>
+  </footer>
+
+  <!-- Toggle button for touch controls (shown when joystick is hidden) -->
+  <button class="joystick-toggle" id="joystick-toggle" aria-label="Toggle gamepad">
+    <span class="jt-label">JOYSTICK</span>
+    <span class="jt-icon">&#x1F3AE;</span>
+  </button>
+
+  <!-- ===== MOBILE TOUCH CONTROLS — NES Controller Layout ===== -->
+  <div class="touch-overlay" id="touch-overlay" aria-label="NES controller" role="toolbar">
+    <!-- LEFT: Fire buttons (A = dual shot, B = single shot) -->
+    <div class="touch-buttons">
+      <button class="nes-btn nes-btn-b" id="touch-b" aria-label="B - Single shot" data-btn="b">B</button>
+      <button class="nes-btn nes-btn-a" id="touch-a" aria-label="A - Dual shot" data-btn="a">A</button>
+    </div>
+    <!-- CENTER: Select + Start -->
+    <div class="touch-center">
+      <button class="nes-pill" id="touch-select" aria-label="Select" data-btn="select">SELECT</button>
+      <button class="nes-pill" id="touch-start" aria-label="Start" data-btn="start">START</button>
+      <button class="nes-pill nes-pill--close" id="touch-close" aria-label="Close joystick">CLOSE</button>
+    </div>
+    <!-- RIGHT: D-Pad -->
+    <div class="touch-dpad">
+      <div class="dpad-base">
+        <button class="dpad-btn dpad-up" id="touch-up" aria-label="Up" data-btn="up">&#9650;</button>
+        <button class="dpad-btn dpad-right" id="touch-right" aria-label="Right" data-btn="right">&#9654;</button>
+        <button class="dpad-btn dpad-down" id="touch-down" aria-label="Down" data-btn="down">&#9660;</button>
+        <button class="dpad-btn dpad-left" id="touch-left" aria-label="Left" data-btn="left">&#9664;</button>
+        <div class="dpad-center" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast / Notification -->
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+    <span class="toast-text" id="toast-text"></span>
+  </div>
+
+  <script type="module" src="js/main.js?v=3"></script>
+</body>
+</html>

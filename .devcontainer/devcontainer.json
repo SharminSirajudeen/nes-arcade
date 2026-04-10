@@ -1,0 +1,12 @@
+{
+  "name": "Galaga Arcade",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "forwardPorts": [8080],
+  "postStartCommand": "npx http-server . -p 8080 -c-1 --cors",
+  "portsAttributes": {
+    "8080": {
+      "label": "Galaga Arcade",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
