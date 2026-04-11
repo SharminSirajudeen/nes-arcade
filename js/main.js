@@ -560,6 +560,16 @@ function init() {
   initTouchControls();
   initJoystickToggle();
 
+  // Pause when app goes to background, resume when back
+  document.addEventListener('visibilitychange', () => {
+    if (!state.romLoaded || state.paused) return;
+    if (document.hidden) {
+      bridge.pause();
+    } else {
+      bridge.resume();
+    }
+  });
+
   setTimeout(() => showToast('INSERT CARTRIDGE TO BEGIN', 4000), 500);
 
   // Try auto-load if ROM exists locally (gitignored, not in repo)

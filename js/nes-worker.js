@@ -256,12 +256,13 @@ function tick() {
   // Post-frame mods
   applyPostFrameMods();
 
-  // Flush any remaining audio samples
-  flushAudioBatch();
-
-  // Send frame pixels to main thread (Transferable = zero-copy)
+  // Send frame pixels to main thread FIRST
   const pixels = currentBuf;
   postMessage({ type: 'frame', pixels, fps: currentFps }, [pixels.buffer]);
+
+  // THEN flush audio — so video postMessage and audio buffer update
+  // arrive at approximately the same time on the main thread
+  flushAudioBatch();
 
   // The sent buffer is now neutered. Reallocate it immediately.
   if (pixels === pixelBufA) {
