@@ -9,7 +9,7 @@
   <!-- Retro Pixel Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" crossorigin>
 
   <!-- Inline SVG favicon (no external file needed) -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%23060610'/><polygon points='16,4 19,13 13,13' fill='%2300e5ff'/><rect x='14' y='13' width='4' height='4' fill='%23fff' rx='1'/><rect x='13' y='17' width='6' height='2' fill='%23ff2d78' rx='1'/><text x='16' y='30' font-size='7' text-anchor='middle' fill='%2300e5ff' font-family='monospace'>NES</text></svg>">
@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="styles.css">
 
   <!-- JSNES: JavaScript NES Emulator (v2.0.0) -->
-  <script src="https://unpkg.com/jsnes@2.0.0/dist/jsnes.min.js"></script>
+  <script src="js/vendor/jsnes.min.js"></script>
 </head>
 <body>
 
@@ -271,6 +271,7 @@
       <button class="nes-pill" id="touch-select" aria-label="Select" data-btn="select">SELECT</button>
       <button class="nes-pill" id="touch-start" aria-label="Start" data-btn="start">START</button>
       <button class="nes-pill nes-pill--close" id="touch-close" aria-label="Close joystick">CLOSE</button>
+      <button class="nes-pill nes-pill--close ios-exit-pill" id="ios-exit-btn" aria-label="Exit fullscreen">EXIT</button>
     </div>
     <!-- RIGHT: A + B buttons -->
     <div class="touch-buttons">

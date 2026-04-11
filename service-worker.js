@@ -1,7 +1,7 @@
-// Service Worker — Galaga Arcade PWA
-// Caches all assets for offline play including the ROM
+// Service Worker — NES Arcade PWA
+// Self-destruct old caches on activate, cache fresh on install
 
-const CACHE_NAME = 'galaga-arcade-v1';
+const CACHE_NAME = 'nes-arcade-v4';
 
 const ASSETS = [
   '/',
@@ -9,16 +9,14 @@ const ASSETS = [
   '/styles.css',
   '/galaga.nes',
   '/js/main.js',
-  '/js/EmulatorCore.js',
-  '/js/Renderer.js',
-  '/js/AudioEngine.js',
-  '/js/InputHandler.js',
-  '/js/MemoryHacker.js',
+  '/js/nes-worker.js',
+  '/js/WorkerBridge.js',
+  '/js/RendererWorker.js',
+  '/js/AudioEngineWorker.js',
   '/js/ROMLoader.js',
-  '/js/StateManager.js',
-  '/js/PaletteFix.js',
+  '/js/vendor/jsnes.min.js',
+  '/js/vendor/ringbuf.js',
   '/manifest.json',
-  'https://unpkg.com/jsnes@2.0.0/dist/jsnes.min.js',
   'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap',
 ];
 
@@ -55,7 +53,7 @@ self.addEventListener('fetch', (event) => {
       }
       return fetch(event.request).then((response) => {
         // Cache successful GET responses (fonts, etc.)
-        if (response.ok && event.request.method === 'GET') {
+        if (response.ok && event.request.method === 'GET' && new URL(event.request.url).origin === self.location.origin) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, clone);

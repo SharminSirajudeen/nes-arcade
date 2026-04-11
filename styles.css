@@ -656,6 +656,18 @@ body.ios-fullscreen .nes-pill--close {
   display: none !important;
 }
 
+/* iOS fullscreen exit button — top right corner */
+/* EXIT pill — hidden normally, shown in iOS fullscreen */
+.ios-exit-pill {
+  display: none !important;
+}
+body.ios-fullscreen .ios-exit-pill {
+  display: flex !important;
+}
+body.ios-fullscreen .nes-pill--close:not(.ios-exit-pill) {
+  display: none !important;
+}
+
 /* iOS PWA standalone mode — fill entire screen including safe areas */
 @media (display-mode: standalone) {
   body {
@@ -2106,7 +2118,7 @@ body.mobile-fullscreen .touch-overlay {
 
   /* A + B — same size, concave tablet shape (dip in center, raised rim) */
   .nes-btn-a, .nes-btn-b {
-    width: 54px; height: 54px;
+    width: 70px; height: 70px;
     /* Concave: dark center, lighter edges — like a pressed-in tablet */
     background: radial-gradient(circle at 50% 50%, #8a1010 0%, #b81e20 40%, #d42828 70%, #e83830 100%);
     box-shadow:
@@ -2167,15 +2179,15 @@ body.mobile-fullscreen .touch-overlay {
 
   .dpad-base {
     display: grid;
-    grid-template-columns: 44px 44px 44px;
-    grid-template-rows: 44px 44px 44px;
+    grid-template-columns: 52px 52px 52px;
+    grid-template-rows: 52px 52px 52px;
     gap: 0;
   }
 
   .dpad-btn {
     appearance: none; border: none; cursor: pointer; outline: none;
     display: flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px;
+    width: 52px; height: 52px;
     background: #1a1a1a;
     border: 1px solid rgba(60,60,60,0.5);
     color: #555;
@@ -2192,7 +2204,7 @@ body.mobile-fullscreen .touch-overlay {
 
   .dpad-center {
     grid-column: 2; grid-row: 2;
-    width: 44px; height: 44px;
+    width: 52px; height: 52px;
     background: #1a1a1a;
     border: 1px solid rgba(60,60,60,0.5);
     display: flex; align-items: center; justify-content: center;

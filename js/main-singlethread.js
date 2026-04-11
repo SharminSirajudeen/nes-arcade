@@ -1,24 +1,22 @@
 /**
- * Main — Orchestrator for NES Arcade (Worker Architecture)
+ * Main — Wires the JSNES engine modules to the arcade UI.
  *
- * Main thread responsibilities:
- * - UI (DOM, sliders, toggles, fullscreen, touch controls)
- * - Canvas rendering (receives pre-converted pixels from Worker)
- * - Audio playback (reads from SharedArrayBuffer written by Worker)
- * - Input capture (keyboard, touch, gamepad → postMessage to Worker)
- * - Save state storage (localStorage, receives state JSON from Worker)
+ * This file bridges:
+ * - The retro arcade UI (index.html + styles.css)
+ * - The emulator engine (EmulatorCore, Renderer, AudioEngine, etc.)
  *
- * Worker thread (nes-worker.js) handles:
- * - JSNES emulation (CPU, PPU, APU)
- * - Audio sample generation (writes to SharedArrayBuffer)
- * - All game mods (speed, firepower, lives, dual fighter)
- * - Palette fix, memory hacking
+ * Flow: User drops ROM -> engine loads it -> game renders on canvas
+ *       with full NES audio, input, memory hacking, and save states.
  */
 
-import { WorkerBridge } from './WorkerBridge.js';
-import { RendererWorker } from './RendererWorker.js';
-import { AudioEngineWorker } from './AudioEngineWorker.js';
+import { EmulatorCore } from './EmulatorCore.js';
+import { Renderer } from './Renderer.js';
+import { AudioEngine } from './AudioEngine.js';
+import { InputHandler } from './InputHandler.js';
+import { MemoryHacker } from './MemoryHacker.js';
 import { ROMLoader } from './ROMLoader.js';
+import { StateManager } from './StateManager.js';
+import { applyAccuratePalette } from './PaletteFix.js';
 
 // ── DOM References ──────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -32,26 +30,30 @@ const els = {
   gameControls:  $('#game-controls'),
   powerLed:      $('#power-led'),
   crtScreen:     $('.crt-screen'),
+
   btnPause:      $('#btn-pause'),
   btnReset:      $('#btn-reset'),
   btnSound:      $('#btn-sound'),
   soundIcon:     $('#sound-icon'),
+
   toast:         $('#toast'),
   toastText:     $('#toast-text'),
+
 };
 
-// ── Core Instances ──────────────────────────────────────────
-const bridge = new WorkerBridge('js/nes-worker.js');
-const renderer = new RendererWorker(els.gameCanvas);
-const audioSAB = AudioEngineWorker.createAudioSAB(0.5); // null if no SharedArrayBuffer
-const audio = new AudioEngineWorker();
+// ── Module Instances ────────────────────────────────────────
+const emulator = new EmulatorCore();
+const renderer = new Renderer(els.gameCanvas);
+const audio = new AudioEngine();
+const input = new InputHandler(emulator);
+const hacker = new MemoryHacker(emulator);
+const stateManager = new StateManager(emulator, hacker);
 const romLoader = new ROMLoader();
 
-// Debug globals — only on localhost
-if (location.hostname === 'localhost') {
-  window._bridge = bridge;
-  window._audio = audio;
-}
+// Expose for debugging and memory scanning via browser console
+window._emu = emulator;
+window._hacker = hacker;
+window._audio = audio;
 
 // ── App State ───────────────────────────────────────────────
 const state = {
@@ -59,6 +61,8 @@ const state = {
   paused: false,
   soundOn: true,
   saveSlots: [null, null, null],
+  highScore: 0,
+  lastRomData: null, // saved for reset
 };
 
 // ── Toast ───────────────────────────────────────────────────
@@ -85,53 +89,51 @@ function syncSliderFill(slider) {
   fill.style.width = ((val - min) / (max - min)) * 100 + '%';
 }
 
-// ── Initialize Worker + Audio ───────────────────────────────
+// ── Initialize Emulator ─────────────────────────────────────
 function initEmulator() {
-  // Initialize Worker with SharedArrayBuffer for audio
-  bridge.init(audioSAB);
-
-  // Handle incoming frames from Worker
-  bridge.onFrame((pixels, fps) => {
-    renderer.renderFrame(pixels);
-    // Return the buffer to the Worker for reuse (double-buffering)
-    bridge.returnBuffer(pixels.buffer);
-  });
-
-  // Handle fallback audio (postMessage batches when no SharedArrayBuffer)
-  bridge.onAudioBatch((left, right) => {
-    audio.receiveBatch(left, right);
-  });
-
-  // Handle state events
-  bridge.onStateEvent((event, data) => {
-    if (event === 'rom-loaded') {
-      showToast('ROM LOADED');
-    } else if (event === 'error') {
-      showToast('ERROR: ' + data);
-    }
+  emulator.init({
+    onFrame: (frameBuffer) => renderer.renderFrame(frameBuffer),
+    onAudioSample: (left, right) => audio.writeSample(left, right),
   });
 }
 
 // ── ROM Loading ─────────────────────────────────────────────
 function onRomLoaded(romInfo) {
-  bridge.loadROM(romInfo.romData);
-  state.romLoaded = true;
+  try {
+    emulator.loadROM(romInfo.romData);
+  } catch (err) {
+    showToast('ERROR: ' + err.message);
+    els.romLoader.classList.remove('loading');
+    return;
+  }
 
-  // Audio requires a user gesture — guard against double-init race
-  let audioStarted = false;
+  state.romLoaded = true;
+  state.lastRomData = romInfo.romData;
+  stateManager.setROMName(romInfo.name);
+
+  // Initialize subsystems
+  hacker.init();
+  input.bind();
+  initSpeedHack();
+  applyAccuratePalette(emulator);
+
+  // Audio requires a user gesture to start (browser autoplay policy).
+  // Init on the first click or keypress after ROM loads.
   function startAudioOnGesture() {
-    if (audioStarted) return;
-    audioStarted = true;
+    audio.init().then(() => {
+      if (!state.soundOn) audio.setMuted(true);
+      showToast('SOUND ON');
+    });
     document.removeEventListener('click', startAudioOnGesture);
     document.removeEventListener('keydown', startAudioOnGesture);
-    audio.init(audioSAB).then(() => {
-      if (!state.soundOn) audio.setMuted(true);
-    });
   }
   document.addEventListener('click', startAudioOnGesture);
   document.addEventListener('keydown', startAudioOnGesture);
 
-  // Transition UI
+  // Start auto-save
+  stateManager.startAutoSave(30000);
+
+  // Transition UI: hide loader, show game
   els.romLoader.hidden = true;
   els.canvasWrapper.hidden = false;
   const powerControls = document.querySelector('.power-controls');
@@ -140,11 +142,13 @@ function onRomLoaded(romInfo) {
 
   showToast('ROM LOADED: ' + romInfo.name.toUpperCase());
 
-  // Start the emulation loop in the Worker
-  bridge.start();
+  // Start the emulator
+  emulator.start();
 }
 
 function initRomLoader() {
+  // ROMLoader handles drag-drop on the dropzone and file input change events.
+  // It calls onRomLoaded with parsed ROM info when a valid .nes file is provided.
   romLoader.init({
     dropTarget: els.romDropzone,
     fileInput: els.romFileInput,
@@ -152,6 +156,7 @@ function initRomLoader() {
     onError: (msg) => showToast('ERROR: ' + msg),
   });
 
+  // Click anywhere on the dropzone (except the browse label) opens file picker
   els.romDropzone.addEventListener('click', (e) => {
     if (e.target.closest('.rom-browse-btn') || e.target === els.romFileInput) return;
     els.romFileInput.click();
@@ -164,6 +169,7 @@ function initRomLoader() {
     }
   });
 
+  // Prevent default drag behavior on the whole page
   document.addEventListener('dragover', (e) => e.preventDefault());
   document.addEventListener('drop', (e) => e.preventDefault());
 }
@@ -175,24 +181,28 @@ function initGameControls() {
     if (!state.romLoaded) return;
     state.paused = !state.paused;
     if (state.paused) {
-      bridge.pause();
+      emulator.pause();
       els.btnPause.innerHTML = '&#x25B6;';
       els.crtScreen.classList.add('paused');
       showToast('PAUSED');
     } else {
-      bridge.resume();
+      emulator.resume();
       els.btnPause.innerHTML = '&#x23F8;';
       els.crtScreen.classList.remove('paused');
     }
   });
 
-  // Reset
+  // Reset — reload the ROM for a clean restart
   els.btnReset.addEventListener('click', () => {
-    if (!state.romLoaded) return;
-    bridge.reset();
+    if (!state.romLoaded || !state.lastRomData) return;
+    emulator.pause();
+    emulator.loadROM(state.lastRomData);
+    applyAccuratePalette(emulator);
+    lastPlayerX = -1;
     state.paused = false;
     els.crtScreen.classList.remove('paused');
     els.btnPause.innerHTML = '&#x23F8;';
+    emulator.start();
     showToast('GAME RESET');
   });
 
@@ -213,11 +223,13 @@ function initGameControls() {
     });
   }
 
-  // Fullscreen (with Safari/webkit/iOS support)
+  // Fullscreen (with Safari/webkit support)
   function goFullscreen(el) {
+    // Standard Fullscreen API
     if (el.requestFullscreen) return el.requestFullscreen();
     if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
     if (el.msRequestFullscreen) return el.msRequestFullscreen();
+    // iOS: no API — simulate fullscreen with CSS
     document.body.classList.add('ios-fullscreen');
     return Promise.resolve();
   }
@@ -233,10 +245,12 @@ function initGameControls() {
   const btnFullscreen = $('#btn-fullscreen');
   if (btnFullscreen) {
     btnFullscreen.addEventListener('click', () => {
+      // iOS CSS fullscreen toggle
       if (document.body.classList.contains('ios-fullscreen')) {
         document.body.classList.remove('ios-fullscreen');
         return;
       }
+      // Enter iOS fullscreen
       document.body.classList.remove('ios-fullscreen');
       if (!isFullscreen()) {
         const isMobile = window.matchMedia('(pointer: coarse), (max-width: 768px)').matches;
@@ -252,7 +266,7 @@ function initGameControls() {
     });
   }
 
-  // Fullscreen state management
+  // Fullscreen state management (standard + webkit)
   function onFullscreenChange() {
     const overlay = $('#touch-overlay');
     const toggle = $('#joystick-toggle');
@@ -260,11 +274,13 @@ function initGameControls() {
     const isMobile = window.matchMedia('(pointer: coarse), (max-width: 768px)').matches;
 
     if (isFullscreen() && isMobile) {
+      // Entering mobile fullscreen: show joystick, hide toggle + close
       document.body.classList.add('mobile-fullscreen');
       if (overlay) overlay.classList.remove('hidden');
       if (toggle) toggle.style.display = 'none';
       if (closePill) closePill.style.display = 'none';
     } else {
+      // Exiting fullscreen: restore normal state
       document.body.classList.remove('mobile-fullscreen');
       if (overlay) overlay.classList.add('hidden');
       if (toggle) { toggle.style.display = ''; toggle.classList.remove('active'); }
@@ -288,7 +304,118 @@ function initGameControls() {
   }
 }
 
-// ── Mod Controls (Sliders → Worker) ─────────────────────────
+// ── Mod State ───────────────────────────────────────────────
+const mods = {
+  speed: 1,        // 1x = normal, up to 10x
+  firepower: 1,    // 1 = normal, 2+ = dual shot + faster bullets
+  infiniteLives: false,
+  _frozenLives: null,
+  dualFighter: false,
+};
+
+// Speed multiplier: track player X each frame, amplify movement
+let lastPlayerX = -1;
+// Fire rate: on Z press, force both bullet slots active (dual shot from one tap)
+let fireKeyHeld = false;
+
+function initSpeedHack() {
+  // Track Z key for dual-shot spawning
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyZ' || !state.romLoaded || mods.firepower < 2) return;
+    if (fireKeyHeld) return;
+    fireKeyHeld = true;
+
+    const speedIdx = emulator.readMemory(0x0201) & 0x1F || 0x01;
+    const playerY = emulator.readMemory(0x0202);
+    const playerX = emulator.readMemory(0x0203);
+
+    if (emulator.readMemory(0x02E0) & 0x80) {
+      emulator.writeMemory(0x02E0, speedIdx);
+      emulator.writeMemory(0x02E1, playerY);
+      emulator.writeMemory(0x02E2, playerX);
+      emulator.writeMemory(0x02E3, 0);
+      emulator.writeMemory(0x02E4, 0);
+    }
+    if (emulator.readMemory(0x02E8) & 0x80) {
+      emulator.writeMemory(0x02E8, speedIdx);
+      emulator.writeMemory(0x02E9, playerY);
+      emulator.writeMemory(0x02EA, playerX);
+      emulator.writeMemory(0x02EB, 0);
+      emulator.writeMemory(0x02EC, 0);
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyZ') fireKeyHeld = false;
+  });
+
+  // No pre-frame hook needed — slow enemies uses frame skipping, not RAM hacking
+
+  // POST-FRAME: player hacks (speed, bullets, lives, invincibility)
+  emulator.addPostFrameHook(() => {
+    const currentX = emulator.readMemory(0x0203);
+
+    // Speed multiplier
+    if (mods.speed > 1 && lastPlayerX >= 0) {
+      const delta = currentX - lastPlayerX;
+      if (delta !== 0 && Math.abs(delta) >= 1 && Math.abs(delta) <= 2) {
+        const extra = delta * (mods.speed - 1);
+        let newX = currentX + extra;
+        newX = Math.max(16, Math.min(223, newX));
+        emulator.writeMemory(0x0203, newX & 0xFF);
+      }
+    }
+    lastPlayerX = emulator.readMemory(0x0203);
+
+    // Firepower: dual shot + faster bullets + instant re-fire
+    if (mods.firepower > 1) {
+      // Zero cooldowns for instant re-fire
+      emulator.writeMemory(0x60, 0x14);
+      emulator.writeMemory(0xC9, 0x00);
+
+      // Faster bullets — capped at 4 extra px/frame.
+      // Enemy sprites are 8px tall, normal bullet speed ~3px/frame.
+      // Total must stay under 8px/frame or collision detection fails.
+      const extraUp = Math.min((mods.firepower - 1) + 1, 5);
+      const b1Flag = emulator.readMemory(0x02E0);
+      if ((b1Flag & 0x80) === 0) {
+        const y = emulator.readMemory(0x02E1);
+        if (y > 8) emulator.writeMemory(0x02E1, (y - extraUp) & 0xFF);
+      }
+      const b2Flag = emulator.readMemory(0x02E8);
+      if ((b2Flag & 0x80) === 0) {
+        const y = emulator.readMemory(0x02E9);
+        if (y > 8) emulator.writeMemory(0x02E9, (y - extraUp) & 0xFF);
+      }
+    }
+
+    // Infinite lives: freeze lives counter at captured value
+    if (mods.infiniteLives && mods._frozenLives !== null) {
+      emulator.writeMemory(0x0487, mods._frozenLives);
+    }
+
+    // Dual fighter: force dual ship mode ($79 = 1) + keep 2nd ship alive at $0210
+    if (mods.dualFighter) {
+      emulator.writeMemory(0x79, 0x01);
+
+      // Ensure 2nd ship entity is active
+      const ship2State = emulator.readMemory(0x0210);
+      if (ship2State === 0 || (ship2State & 0x80) !== 0) {
+        // Copy entire player entity ($0200-$020F) to 2nd ship ($0210-$021F)
+        for (let i = 0; i < 16; i++) {
+          emulator.writeMemory(0x0210 + i, emulator.readMemory(0x0200 + i));
+        }
+      }
+      // Sync 2nd ship position: same Y, X + 16
+      emulator.writeMemory(0x0212, emulator.readMemory(0x0202));
+      emulator.writeMemory(0x0213, emulator.readMemory(0x0203) + 16);
+    }
+
+
+  });
+}
+
+// ── Mod Sliders → Memory Hacker ─────────────────────────────
 function initModControls() {
   const sliders = document.querySelectorAll('.mod-slider');
   sliders.forEach((slider) => {
@@ -304,11 +431,11 @@ function initModControls() {
       const val = parseInt(slider.value, 10);
       switch (slider.id) {
         case 'mod-speed':
-          bridge.setMod('speed', val);
+          mods.speed = val;
           showToast(`SPEED: ${val}x`);
           break;
         case 'mod-firepower':
-          bridge.setMod('firepower', val);
+          mods.firepower = val;
           if (val === 1) showToast('FIREPOWER: NORMAL');
           else if (val < 4) showToast(`FIREPOWER: ${val} (dual shot)`);
           else showToast(`FIREPOWER: ${val} (dual shot + fast bullets)`);
@@ -318,66 +445,55 @@ function initModControls() {
   });
 }
 
-// ── Toggle Buttons ──────────────────────────────────────────
+// ── Toggle Buttons (Invincible, Enemy Freeze) ──────────────
 function initToggleMods() {
   const btnInfiniteLives = $('#btn-infinite-lives');
   if (btnInfiniteLives) {
     btnInfiniteLives.addEventListener('click', () => {
-      const enabled = btnInfiniteLives.getAttribute('aria-pressed') !== 'true';
-      bridge.setInfiniteLives(enabled);
-      btnInfiniteLives.setAttribute('aria-pressed', String(enabled));
-      btnInfiniteLives.classList.toggle('active', enabled);
-      showToast(enabled ? 'INFINITE LIVES: ON' : 'INFINITE LIVES: OFF');
+      mods.infiniteLives = !mods.infiniteLives;
+      if (mods.infiniteLives) {
+        mods._frozenLives = emulator.readMemory(0x0487);
+        showToast(`INFINITE LIVES: ON (locked at ${mods._frozenLives})`);
+      } else {
+        mods._frozenLives = null;
+        showToast('INFINITE LIVES: OFF');
+      }
+      btnInfiniteLives.setAttribute('aria-pressed', String(mods.infiniteLives));
+      btnInfiniteLives.classList.toggle('active', mods.infiniteLives);
     });
   }
 
   const btnDualFighter = $('#btn-dual-fighter');
   if (btnDualFighter) {
     btnDualFighter.addEventListener('click', () => {
-      const enabled = btnDualFighter.getAttribute('aria-pressed') !== 'true';
-      bridge.setDualFighter(enabled);
-      btnDualFighter.setAttribute('aria-pressed', String(enabled));
-      btnDualFighter.classList.toggle('active', enabled);
-      showToast(enabled ? 'DUAL FIGHTER: ON' : 'DUAL FIGHTER: OFF');
+      mods.dualFighter = !mods.dualFighter;
+      btnDualFighter.setAttribute('aria-pressed', String(mods.dualFighter));
+      btnDualFighter.classList.toggle('active', mods.dualFighter);
+      if (mods.dualFighter) {
+        emulator.writeMemory(0x79, 0x01);
+        showToast('DUAL FIGHTER: ON');
+      } else {
+        emulator.writeMemory(0x79, 0x00);
+        showToast('DUAL FIGHTER: OFF');
+      }
     });
   }
 }
 
 // ── Save / Load State ───────────────────────────────────────
 function initSaveLoad() {
-  // Restore previous saves from localStorage
-  const STORAGE_PREFIX = 'nes_galaga_state_';
-  const STORAGE_INDEX = 'nes_galaga_state_index';
-
-  function listSlots() {
-    try {
-      const raw = localStorage.getItem(STORAGE_INDEX);
-      if (!raw) return [];
-      return Object.entries(JSON.parse(raw)).map(([id, meta]) => ({ id, ...meta }));
-    } catch { return []; }
-  }
-
   for (let slot = 1; slot <= 3; slot++) {
     const saveBtn = $(`#btn-save-${slot}`);
     const loadBtn = $(`#btn-load-${slot}`);
     const slotId = `slot_${slot}`;
 
-    saveBtn.addEventListener('click', async () => {
+    saveBtn.addEventListener('click', () => {
       if (!state.romLoaded) return;
       const wasPaused = state.paused;
-      if (!wasPaused) bridge.pause();
+      if (!wasPaused) emulator.pause();
 
-      try {
-        const { state: nesState } = await bridge.saveState(slotId);
-        const saveData = { id: slotId, label: `Slot ${slot}`, timestamp: Date.now(), state: nesState };
-        localStorage.setItem(STORAGE_PREFIX + slotId, JSON.stringify(saveData));
-
-        // Update index
-        const indexRaw = localStorage.getItem(STORAGE_INDEX);
-        const index = indexRaw ? JSON.parse(indexRaw) : {};
-        index[slotId] = { label: saveData.label, timestamp: saveData.timestamp };
-        localStorage.setItem(STORAGE_INDEX, JSON.stringify(index));
-
+      const ok = stateManager.saveToSlot(slotId, `Slot ${slot}`);
+      if (ok) {
         state.saveSlots[slot - 1] = true;
         const slotEl = $(`#slot-${slot}`);
         if (slotEl) {
@@ -387,38 +503,33 @@ function initSaveLoad() {
         }
         loadBtn.disabled = false;
         showToast(`STATE SAVED TO SLOT ${slot}`);
-      } catch (err) {
+      } else {
         showToast('ERROR: SAVE FAILED');
       }
 
-      if (!wasPaused) bridge.resume();
+      if (!wasPaused) emulator.resume();
     });
 
-    loadBtn.addEventListener('click', async () => {
+    loadBtn.addEventListener('click', () => {
       if (!state.romLoaded || !state.saveSlots[slot - 1]) return;
-      try {
-        const raw = localStorage.getItem(STORAGE_PREFIX + slotId);
-        if (!raw) return;
-        const saveData = JSON.parse(raw);
-        if (!saveData || typeof saveData !== 'object' || !saveData.state) {
-          showToast('ERROR: CORRUPT SAVE DATA');
-          return;
-        }
-        await bridge.loadState(saveData.state);
+      const ok = stateManager.loadFromSlot(slotId);
+      if (ok) {
+        applyAccuratePalette(emulator); // re-apply after state restore
         showToast(`STATE LOADED FROM SLOT ${slot}`);
         if (state.paused) {
           state.paused = false;
-          bridge.resume();
+          emulator.resume();
           els.crtScreen.classList.remove('paused');
           els.btnPause.innerHTML = '&#x23F8;';
+          els.btnPause.innerHTML = '&#x23F8;';
         }
-      } catch (err) {
+      } else {
         showToast('ERROR: LOAD FAILED');
       }
     });
 
-    // Restore existing saves on init
-    const existing = listSlots();
+    // Restore previous saves from localStorage
+    const existing = stateManager.listSlots();
     const found = existing.find((s) => s.id === slotId);
     if (found) {
       state.saveSlots[slot - 1] = true;
@@ -433,71 +544,93 @@ function initSaveLoad() {
   }
 }
 
-// ── Input: Keyboard → Worker ────────────────────────────────
-function initKeyboardInput() {
-  const keyMap = {
-    'ArrowUp': 4, 'ArrowDown': 5, 'ArrowLeft': 6, 'ArrowRight': 7,
-    'KeyZ': 0, 'KeyX': 1, 'ShiftRight': 2, 'ShiftLeft': 2, 'Enter': 3,
-  };
-  const pressed = new Set();
-
-  document.addEventListener('keydown', (e) => {
-    const button = keyMap[e.code];
-    if (button !== undefined && state.romLoaded) {
-      e.preventDefault();
-      if (!pressed.has(e.code)) {
-        pressed.add(e.code);
-        bridge.buttonDown(1, button);
-        // Dual shot on Z press
-        if (e.code === 'KeyZ') bridge.dualShotFire();
-      }
-    }
-
-    // Keyboard shortcuts
-    if (e.key === 'p' || e.key === 'P') els.btnPause.click();
-    if (e.key === 'm' || e.key === 'M') els.btnSound.click();
-  });
-
-  document.addEventListener('keyup', (e) => {
-    const button = keyMap[e.code];
-    if (button !== undefined && state.romLoaded) {
-      pressed.delete(e.code);
-      bridge.buttonUp(1, button);
-    }
-  });
-}
-
-// ── Input: Touch → Worker ───────────────────────────────────
+// ── Mobile Touch Controls ───────────────────────────────────
 function initTouchControls() {
   const btnMap = {
     up: 4, down: 5, left: 6, right: 7,
-    a: 0, b: 0, select: 2, start: 3,
+    a: 0,      // A = fire (dual shot when firepower > 1)
+    b: 0,      // B = fire (always single shot)
+    select: 2,
+    start: 3,
   };
 
   document.querySelectorAll('[data-btn]').forEach((btn) => {
     const nesBtn = btnMap[btn.dataset.btn];
     if (nesBtn === undefined) return;
     const isA = btn.dataset.btn === 'a';
+    const isB = btn.dataset.btn === 'b';
 
     btn.addEventListener('touchstart', (e) => {
       e.preventDefault();
       btn.classList.add('active');
       if (!state.romLoaded) return;
-      if (isA) bridge.dualShotFire();
-      bridge.buttonDown(1, nesBtn);
+      // A = dual shot mode, B = always single
+      if (isA && mods.firepower >= 2) {
+        // Force both bullet slots (same as keyboard dual shot)
+        const speedIdx = emulator.readMemory(0x0201) & 0x1F || 0x01;
+        const playerY = emulator.readMemory(0x0202);
+        const playerX = emulator.readMemory(0x0203);
+        if (emulator.readMemory(0x02E0) & 0x80) {
+          emulator.writeMemory(0x02E0, speedIdx);
+          emulator.writeMemory(0x02E1, playerY);
+          emulator.writeMemory(0x02E2, playerX);
+          emulator.writeMemory(0x02E3, 0);
+          emulator.writeMemory(0x02E4, 0);
+        }
+        if (emulator.readMemory(0x02E8) & 0x80) {
+          emulator.writeMemory(0x02E8, speedIdx);
+          emulator.writeMemory(0x02E9, playerY);
+          emulator.writeMemory(0x02EA, playerX);
+          emulator.writeMemory(0x02EB, 0);
+          emulator.writeMemory(0x02EC, 0);
+        }
+      }
+      emulator.buttonDown(1, nesBtn);
     }, { passive: false });
 
     btn.addEventListener('touchend', (e) => {
       e.preventDefault();
       btn.classList.remove('active');
-      if (state.romLoaded) bridge.buttonUp(1, nesBtn);
+      if (state.romLoaded) emulator.buttonUp(1, nesBtn);
     }, { passive: false });
 
     btn.addEventListener('touchcancel', () => {
       btn.classList.remove('active');
-      if (state.romLoaded) bridge.buttonUp(1, nesBtn);
+      if (state.romLoaded) emulator.buttonUp(1, nesBtn);
     });
   });
+}
+
+// ── Joystick Toggle ────────────────────────────────────────
+function initJoystickToggle() {
+  const btn = $('#joystick-toggle');
+  const overlay = $('#touch-overlay');
+  const closeBtn = $('#touch-close');
+  if (!btn || !overlay) return;
+
+  // Start hidden
+  overlay.classList.add('hidden');
+
+  // Open joystick
+  btn.addEventListener('click', () => {
+    overlay.classList.remove('hidden');
+    btn.classList.add('active');
+  });
+
+  // Close joystick (pill inside overlay) — also exits iOS fullscreen
+  if (closeBtn) {
+    function handleClose(e) {
+      if (e) e.preventDefault();
+      // Exit iOS CSS fullscreen if active
+      if (document.body.classList.contains('ios-fullscreen')) {
+        document.body.classList.remove('ios-fullscreen');
+      }
+      overlay.classList.add('hidden');
+      btn.classList.remove('active');
+    }
+    closeBtn.addEventListener('touchstart', handleClose, { passive: false });
+    closeBtn.addEventListener('click', handleClose);
+  }
 }
 
 // ── Keyboard Highlights ─────────────────────────────────────
@@ -511,40 +644,18 @@ function initKeyboardHighlight() {
   document.addEventListener('keydown', (e) => {
     const idx = keyMap[e.key];
     if (idx !== undefined && keyCaps[idx]) keyCaps[idx].classList.add('active');
+
+    // Keyboard shortcuts
+    if (e.key === 'p' || e.key === 'P') els.btnPause.click();
+    if (e.key === 'm' || e.key === 'M') els.btnSound.click();
+    if (e.key === 'F5') { e.preventDefault(); stateManager.quickSave(); showToast('QUICK SAVE'); }
+    if (e.key === 'F8') { e.preventDefault(); stateManager.quickLoad(); applyAccuratePalette(emulator); showToast('QUICK LOAD'); }
   });
 
   document.addEventListener('keyup', (e) => {
     const idx = keyMap[e.key];
     if (idx !== undefined && keyCaps[idx]) keyCaps[idx].classList.remove('active');
   });
-}
-
-// ── Joystick Toggle ─────────────────────────────────────────
-function initJoystickToggle() {
-  const btn = $('#joystick-toggle');
-  const overlay = $('#touch-overlay');
-  const closeBtn = $('#touch-close');
-  if (!btn || !overlay) return;
-
-  overlay.classList.add('hidden');
-
-  btn.addEventListener('click', () => {
-    overlay.classList.remove('hidden');
-    btn.classList.add('active');
-  });
-
-  if (closeBtn) {
-    function handleClose(e) {
-      if (e) e.preventDefault();
-      if (document.body.classList.contains('ios-fullscreen')) {
-        document.body.classList.remove('ios-fullscreen');
-      }
-      overlay.classList.add('hidden');
-      btn.classList.remove('active');
-    }
-    closeBtn.addEventListener('touchstart', handleClose, { passive: false });
-    closeBtn.addEventListener('click', handleClose);
-  }
 }
 
 // ── Initialize Everything ───────────────────────────────────
@@ -555,7 +666,6 @@ function init() {
   initModControls();
   initToggleMods();
   initSaveLoad();
-  initKeyboardInput();
   initKeyboardHighlight();
   initTouchControls();
   initJoystickToggle();
@@ -575,6 +685,7 @@ function init() {
     onRomLoaded({ name: 'galaga.nes', size: bytes.length, ...header, romData });
   }).catch(() => {});
 }
+
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);

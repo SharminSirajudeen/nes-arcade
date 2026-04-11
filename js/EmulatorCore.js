@@ -261,7 +261,8 @@ export class EmulatorCore {
     const elapsed = timestamp - this.#lastFrameTime;
     if (elapsed >= FRAME_INTERVAL_MS - 1) {
       // How many NES frames should have run in this elapsed time?
-      const numFrames = Math.min(Math.round(elapsed / FRAME_INTERVAL_MS), 4);
+      // Cap at 2 — more than that bogs down slow devices further
+      const numFrames = Math.min(Math.round(elapsed / FRAME_INTERVAL_MS), 2);
 
       for (let f = 0; f < numFrames; f++) {
         // Pre-frame hooks
