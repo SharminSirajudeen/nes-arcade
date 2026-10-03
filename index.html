@@ -3,16 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="Browser-based NES Galaga emulator with real-time game modification controls. Retro arcade experience.">
-  <title>GALAGA ARCADE - NES Emulator</title>
+  <meta name="description" content="For everyone who ever wanted to play Galaga in god mode. Load your own NES cartridge, then switch on infinite lives, max firepower, turbo speed and the dual fighter.">
+  <title>NES ARCADE - Bring Your Own Galaga</title>
 
   <!-- Retro Pixel Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" crossorigin>
 
-  <!-- Inline SVG favicon (no external file needed) -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%23060610'/><polygon points='16,4 19,13 13,13' fill='%2300e5ff'/><rect x='14' y='13' width='4' height='4' fill='%23fff' rx='1'/><rect x='13' y='17' width='6' height='2' fill='%23ff2d78' rx='1'/><text x='16' y='30' font-size='7' text-anchor='middle' fill='%2300e5ff' font-family='monospace'>NES</text></svg>">
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
   <link rel="apple-touch-icon" href="icon-180.png">
 
   <!-- PWA Manifest -->
@@ -45,10 +44,10 @@
   <header class="arcade-header" role="banner">
     <div class="header-glow" aria-hidden="true"></div>
     <h1 class="arcade-title">
-      <span class="title-galaga">GALAGA</span>
+      <span class="title-galaga">NES</span>
       <span class="title-arcade">ARCADE</span>
     </h1>
-    <p class="header-subtitle">NES EMULATOR &mdash; BROWSER EDITION</p>
+    <p class="header-subtitle">BRING YOUR OWN GALAGA &bull; PLAY IT IN GOD MODE</p>
   </header>
 
   <!-- ===== MAIN LAYOUT ===== -->
@@ -68,7 +67,7 @@
             <div class="cartridge-arrow">&#9660;</div>
           </div>
           <h2 class="rom-title">INSERT CARTRIDGE</h2>
-          <p class="rom-hint">Drag &amp; drop a .nes ROM file here</p>
+          <p class="rom-hint">PLAYER 1, DROP YOUR GALAGA CARTRIDGE (.NES) BELOW</p>
           <div class="rom-dropzone" id="rom-dropzone" tabindex="0" role="button" aria-label="Drop ROM file here or click to browse">
             <div class="dropzone-border"></div>
             <span class="dropzone-text">DROP ROM HERE</span>
@@ -78,7 +77,7 @@
               <input type="file" id="rom-file-input" accept=".nes" hidden>
             </label>
           </div>
-          <p class="rom-legal">For use with legally owned ROM backups only.</p>
+          <p class="rom-legal">NO GAMES INCLUDED. PLAY ONLY CARTRIDGES YOU OWN.</p>
         </div>
       </div>
 
@@ -239,9 +238,9 @@
   <!-- ===== FOOTER ===== -->
   <footer class="arcade-footer" role="contentinfo">
     <p class="footer-text">
-      GALAGA &copy; 1981 NAMCO &bull; Emulation via
+      NO GAMES INCLUDED &bull; YOUR CARTRIDGE NEVER LEAVES YOUR DEVICE &bull; Emulation via
       <a href="https://github.com/bfirsh/jsnes" class="footer-link" target="_blank" rel="noopener noreferrer">JSNES</a>
-      &bull; For educational &amp; preservation purposes
+      &bull; Not affiliated with or endorsed by Bandai Namco. Galaga is a trademark of Bandai Namco Entertainment Inc.
     </p>
     <p class="footer-credit">
       BUILT WITH <span class="footer-heart" aria-label="love">&#9829;</span> AND NOSTALGIA
