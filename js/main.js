@@ -581,7 +581,7 @@ function init() {
     }
   });
 
-  setTimeout(() => showToast('INSERT CARTRIDGE TO BEGIN', 4000), 500);
+  setTimeout(() => showToast('INSERT CARTRIDGE, PLAYER 1', 4000), 500);
 
   // Reload the player's own ROM, kept only in this browser
   caches.open(ROM_CACHE).then(c => c.match(ROM_KEY)).then(r => {

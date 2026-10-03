@@ -1,7 +1,7 @@
 {
   "name": "NES Arcade",
   "short_name": "NES Arcade",
-  "description": "Browser-based NES emulator with game mods",
+  "description": "Bring your own Galaga. Play it in god mode.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "landscape",

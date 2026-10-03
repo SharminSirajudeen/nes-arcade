@@ -326,9 +326,11 @@ body {
 
 .header-subtitle {
   margin-top: var(--sp-3);
-  font-size: var(--text-caption);
-  letter-spacing: 0.3em;
-  color: var(--col-text-dim);
+  font-size: var(--text-title);
+  letter-spacing: 0.15em;
+  line-height: 1.8;
+  color: var(--col-yellow);
+  text-shadow: 0 0 8px var(--col-yellow-glow);
 }
 
 
@@ -1812,7 +1814,7 @@ body.mobile-fullscreen .touch-overlay {
   }
 
   .header-subtitle {
-    font-size: 6px;
+    font-size: 8px;
   }
 
   .arcade-main {
