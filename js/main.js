@@ -115,6 +115,7 @@ function initEmulator() {
 // ── ROM Loading ─────────────────────────────────────────────
 function onRomLoaded(romInfo) {
   bridge.loadROM(romInfo.romData);
+  rememberRom(romInfo);
   state.romLoaded = true;
 
   // Audio requires a user gesture — guard against double-init race
@@ -142,6 +143,16 @@ function onRomLoaded(romInfo) {
 
   // Start the emulation loop in the Worker
   bridge.start();
+}
+
+// The ROM never leaves the device: it is stored in this browser's Cache Storage
+const ROM_CACHE = 'user-rom';
+const ROM_KEY = '/user-rom';
+
+function rememberRom({ name, romData }) {
+  const bytes = Uint8Array.from(romData, (c) => c.charCodeAt(0));
+  const res = new Response(bytes, { headers: { 'X-Rom-Name': name } });
+  caches.open(ROM_CACHE).then(c => c.put(ROM_KEY, res)).catch(() => {});
 }
 
 function initRomLoader() {
@@ -572,17 +583,17 @@ function init() {
 
   setTimeout(() => showToast('INSERT CARTRIDGE TO BEGIN', 4000), 500);
 
-  // Try auto-load if ROM exists locally (gitignored, not in repo)
-  fetch('galaga.nes').then(r => {
-    if (!r.ok) return;
-    return r.arrayBuffer();
-  }).then(buf => {
-    if (!buf) return;
-    const bytes = new Uint8Array(buf);
-    if (!ROMLoader.isValidNES(bytes)) return;
-    const header = ROMLoader.parseHeader(bytes);
-    const romData = ROMLoader.bytesToBinaryString(bytes);
-    onRomLoaded({ name: 'galaga.nes', size: bytes.length, ...header, romData });
+  // Reload the player's own ROM, kept only in this browser
+  caches.open(ROM_CACHE).then(c => c.match(ROM_KEY)).then(r => {
+    if (!r) return;
+    const name = r.headers.get('X-Rom-Name') || 'rom.nes';
+    return r.arrayBuffer().then(buf => {
+      const bytes = new Uint8Array(buf);
+      if (!ROMLoader.isValidNES(bytes)) return;
+      const header = ROMLoader.parseHeader(bytes);
+      const romData = ROMLoader.bytesToBinaryString(bytes);
+      onRomLoaded({ name, size: bytes.length, ...header, romData });
+    });
   }).catch(() => {});
 }
 

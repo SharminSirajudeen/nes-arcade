@@ -1,7 +1,7 @@
 // Vercel Edge Middleware — Cookie-based auth (PWA compatible)
 
 export const config = {
-  matcher: ['/((?!api|_next|favicon.ico|icon-|manifest.json|service-worker.js|js/|styles.css|galaga.nes|.*\\.png|.*\\.js|.*\\.css|.*\\.nes).*)'],
+  matcher: ['/((?!api|_next|favicon.ico|icon-|manifest.json|service-worker.js|js/|styles.css|.*\\.png|.*\\.js|.*\\.css).*)'],
 };
 
 const COOKIE_NAME = 'nes_auth';

@@ -1,13 +1,12 @@
 // Service Worker — NES Arcade PWA
 // Self-destruct old caches on activate, cache fresh on install
 
-const CACHE_NAME = 'nes-arcade-v4';
+const CACHE_NAME = 'nes-arcade-v5';
 
 const ASSETS = [
   '/',
   '/index.html',
   '/styles.css',
-  '/galaga.nes',
   '/js/main.js',
   '/js/nes-worker.js',
   '/js/WorkerBridge.js',
@@ -36,7 +35,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME)
+          .filter((key) => key.startsWith('nes-arcade-') && key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       );
     })

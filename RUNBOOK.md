@@ -161,14 +161,14 @@ if (typeof SharedArrayBuffer !== 'undefined' && crossOriginIsolated) {
 }
 ```
 **Why:** Some browsers/contexts don't support COOP/COEP. The app should still work, just with the old audio behavior on slow devices.
-**Implementation:** Keep current EmulatorCore.js as fallback. main.js checks at startup and chooses path.
+**Implementation:** Superseded. Without SharedArrayBuffer the Worker posts audio batches instead (`AudioEngineWorker` fallback mode), so the single-thread path was deleted.
 **Test:** Disable COOP headers, verify app falls back to single-thread and still works
 
 ### Step 10: Deploy and test
 **Deploy to Vercel with:**
 - COOP/COEP headers in vercel.json
 - All new files
-- ROM (password protected)
+- No ROM. Players load their own; it is kept only in their browser's Cache Storage, and `.vercelignore` stops any `*.nes` from being uploaded
 - PWA manifest + service worker
 **Test on:**
 - Fast device (Mac/desktop): should work identically
